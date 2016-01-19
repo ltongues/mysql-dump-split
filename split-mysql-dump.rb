@@ -1,31 +1,27 @@
 #!/usr/bin/env ruby
- 
+
 require 'optparse'
- 
+
 tables = []
 ignore = []
 use_database = nil
 dumpfile = ""
 
 cmds = OptionParser.new do |opts|
-  opts.banner = "Usage: split-mysql-dump.rb [options] [FILE]"
+  opts.banner = "Usage: split-umi-dump.rb [options] [FILE]"
 
   opts.on("-s", "Read from stdin") do
   dumpfile = $stdin
   end
-  
+
   opts.on("-t", '--tables TABLES', Array, "Extract only these tables") do |t|
     tables = t
   end
-  
+
   opts.on("-i", '--ignore-tables TABLES', Array, "Ignore these tables") do |i|
     ignore = i
   end
 
-  opts.on("-u", '--use-database NAME', String, "Assume NAME as database name") do |n|
-    use_database = n
-  end
-  
   opts.on_tail("-h", "--help") do
   puts opts
   end
@@ -36,12 +32,12 @@ if dumpfile == ""
   dumpfile = ARGV.shift
   if not dumpfile
     puts "Nothing to do"
-    exit 
+    exit
   end
 end
 
 STDOUT.sync = true
- 
+
 class Numeric
   def bytes_to_human
     units = %w{B KB MB GB TB}
@@ -57,12 +53,12 @@ if File.exist?(dumpfile)
   else
     d = File.new(dumpfile, "r:binary")
   end
- 
+
   outfile = nil
   table = nil
   db = use_database
   linecount = tablecount = starttime = 0
- 
+
   while (line = d.gets)
     # Detect table changes
     if line =~ /^-- Table structure for table .(.+)./ or line =~ /^-- Dumping data for table .(.+)./ or line =~ /^# Dump of table.(.+)/
@@ -88,7 +84,13 @@ if File.exist?(dumpfile)
           path = (db.to_s == "" ? "" : "#{db}/") + "tables";
           Dir.mkdir(path) unless File.exists?(path)
           outfile = File.new("#{path}/#{table}.sql", "w")
-          outfile.syswrite("USE `#{db}`;\n\n")
+          # outfile.syswrite("USE `#{db}`;\n")
+
+          ###### UMI.CMS specific stuff #####
+          outfile.syswrite("SET NAMES utf8;\n")
+          outfile.syswrite("SET foreign_key_checks = 0;\n")
+          outfile.syswrite("SET time_zone = 'SYSTEM';\n")
+          outfile.syswrite("SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';\n\n")
         end
       end
     elsif line =~ /^-- Current Database: .(.+)./
@@ -106,7 +108,7 @@ if File.exist?(dumpfile)
       outfile = File.new("1replication.sql", "w")
       puts("\n\nFound replication data")
     end
- 
+
     # Write line to outfile
     if outfile and !outfile.closed?
       outfile.syswrite(line)
@@ -116,5 +118,5 @@ if File.exist?(dumpfile)
     end
   end
 end
- 
+
 puts
